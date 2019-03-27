@@ -7,6 +7,8 @@
 #---
 #run by doing "python *thisfilename*.py for windows. 
 
+#additional changes
+
 from facebookads.api import FacebookAdsApi
 from facebookads.adobjects.adaccountuser import AdAccountUser
 from facebookads.adobjects.adaccount import AdAccount
