@@ -4,6 +4,8 @@
 #you can get the python sdk here https://github.com/facebook/facebook-python-ads-sdk
 #On linux - save facebookads folder to usr/local/lib/python2.7/dist-packages
 #On Windows - I just saved the facebookads folder to the c:/python27 folder where my scripts lived
+#---
+#run by doing "python *thisfilename*.py for windows. 
 
 from facebookads.api import FacebookAdsApi
 from facebookads.adobjects.adaccountuser import AdAccountUser
