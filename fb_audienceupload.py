@@ -30,9 +30,13 @@ shareid = input('Enter your sharing account ID: \n')
 #confirming
 print ('audience will be shared with ' + shareid);
 
+#MAKE SURE THIS SCRIPT LIVES IN A FOLDER WITH THE FOLLOWING
+# - SOURCE directory
+# - ARCHIVE directory
 
 #TO RUN THIS SCRIPT YOU RUN THE FOLLOWING:
-#python37.exe fb_custaud2.py 
+#python37.exe scriptname.py 
+#make sure all of your .csv files live in the source folder initially
 
 
 #1 - this section effectively "logs in"
@@ -104,8 +108,9 @@ for index, filenamez in enumerate(filelist):
 	caid = audience[CustomAudience.Field.id]
 	print ('my new custom audience id is: ' + caid);
 
-	#4 - add records to the blank custom audience
-	# will push with a pid and will use multi key matching. 
+	#4 - add records to the blank custom audience. 
+	# you can define your own schema based on what data you have. 
+	# will push with a ext id and will use multi key matching. 
 	#update - Facebook confirmed "is_raw = True" will automatically hash data.  
 	schema = [
 		CustomAudience.Schema.MultiKeySchema.extern_id, #send your external id here
