@@ -1,93 +1,205 @@
-#Facebook custom audience load api by Joel Sacco
-#for documentation see here - https://developers.facebook.com/docs/marketing-api/audiences-api
-#Warning - I'm not a programmer. This code is probably gross to read but it's the best I could do
-#you can get the python sdk here https://github.com/facebook/facebook-python-ads-sdk
-#On linux - save facebookads folder to usr/local/lib/python2.7/dist-packages
-#On Windows - I just saved the facebookads folder to the c:/python27 folder where my scripts lived
-#---
-#run by doing "python *thisfilename*.py for windows. 
+#Facebook Custom Audience Middleware App by Joel Sacco
+#For API version 3.3 Q4 2019 and Python 3.7
+#updated to version 4.0 1/21/2020
+#update 1/22 - prompt for share id 
 
-from facebookads.api import FacebookAdsApi
-from facebookads.adobjects.adaccountuser import AdAccountUser
-from facebookads.adobjects.adaccount import AdAccount
-from facebookads.adobjects.customaudience import CustomAudience
-from facebookads.adobjects import campaign
-import argparse
-import csv
-import hashlib
+#basic import things for how I want the script to work
+import argparse #parses argments passed with script execution
+import csv #allows script to read csv files
+import hashlib #adds sha256 hashing functionality
+import datetime #adds date functionality
+import shutil #adds ability to move files
+import os #adds ability to do os things
+import requests #adds ability to do HTTP requests (needed for sharing)
 
-#take in the arguments from the command
-#when you execute the command it should be like the following:
-#python scriptname.py audname "auddesc" filename.csv
-#ex - python fb_audiencetest.py name_of_audience "here is a description of the audience" test.csv
-parser = argparse.ArgumentParser()
-parser.add_argument("audname", help="what you wish to name your audience")
-parser.add_argument("auddesc", help="brief description of this audience")
-parser.add_argument("filename", help="file name of raw data csv. Must be csv file")
-args = parser.parse_args()
-
-audname = args.audname
-auddesc = args.auddesc
-filename = args.filename
-
-#Initialize a new Session and instantiate an Api object
-#You will need a facebook account for your organization. go to developers.facebook.com
-#there's a box on the top right that says my apps. Click there and make your first app. 
-#follow the steps here https://developers.facebook.com/docs/marketing-apis 
-#under "Creating an App with Marketing API"
-
-my_app_id = 'APPIDGOESHERE'
-my_app_secret = 'APPSECRETGOESHERE'
-my_access_token = 'APPTOKENGOESHERE' 
-#this particular access token expires and will need to be replaced
-#follow these instructions for an updated token under obtain access token
-#https://developers.facebook.com/docs/marketing-api/quickstart
-#https://developers.facebook.com/docs/marketing-api/audiences-api for more help
-
-FacebookAdsApi.init(my_app_id, my_app_secret, my_access_token)
-
-me = AdAccountUser(fbid='me')
-my_account = me.get_ad_accounts()[0]
-
-#the below line should return your ad account info
-print 'my account id is' ;
-print  my_account.get_id_assured();
-print"";
-
-#below creates a new blank custom audience using the parameters defined above
-audience = CustomAudience(parent_id= my_account.get_id_assured())
-audience[CustomAudience.Field.subtype] = CustomAudience.Subtype.custom
-audience[CustomAudience.Field.name] = audname
-audience[CustomAudience.Field.description] = auddesc
-
-audience.remote_create()
-caid = audience[CustomAudience.Field.id]
-print 'my new custom audience id is:';
-print  caid;
-print""
-
-#send records to audience.
-audience = CustomAudience(caid)
-#below line is for testing records. Userz is actual code for loading csv. 
-#users = ['test1@example.com', 'test2@example.com', 'test3@example.com']
-userz = []
-with open(filename, 'rb') as f:
-    reader = csv.reader(f)
-
-    for row in reader:
-        userz.append(row[0].lower().replace(" ",""))
-
-audadd = audience.add_users(schema=CustomAudience.Schema.email_hash, users=userz, pre_hashed=False)
-#this line will hash the data and add it to the custom audience. 
+#for the below you need to install the facebook sdk
+#with python easiest way to do this is via PIP
+#CD to your python directory run "python37 pip -m facebook_business" from your command line
+#you can also just download the sdk from the github - https://github.com/facebook/facebook-python-business-sdk
+	#note - will need to import sys to reference libraries on disk. Not sure how to do this. 
+#additional documentation  - https://developers.facebook.com/docs/business-sdk/getting-started
+from facebook_business.adobjects.adaccount import AdAccount
+from facebook_business.adobjects.adaccountuser import AdAccountUser
+from facebook_business.adobjects.customaudience import CustomAudience
+from facebook_business.api import FacebookAdsApi
 
 
-#below should print all custom audiences in the specified account id. 
-#should show your new audience in there as well with approximate record count and audience ID
-print "all custom audineces with this account";
-ad_account = AdAccount(my_account.get_id_assured())
-custom_audiences = ad_account.get_custom_audiences(fields=[
-    CustomAudience.Field.name, CustomAudience.Field.id, CustomAudience.Field.approximate_count
-])
-for custom_audience in custom_audiences:
-    print(custom_audience[CustomAudience.Field.name],custom_audience[CustomAudience.Field.id],custom_audience[CustomAudience.Field.approximate_count])
-print "";
+#0 - gets ad accounts for sharing. Will be utilized later. 
+shareid = input('Enter your sharing account ID: \n')
+
+#confirming
+print ('audience will be shared with ' + shareid);
+
+
+#TO RUN THIS SCRIPT YOU RUN THE FOLLOWING:
+#python37.exe fb_custaud2.py 
+
+
+#1 - this section effectively "logs in"
+
+'''
+BEFORE YOU MAKE THIS SECTION YOU MUST COMPLETE THE FOLLOWING
+- get access to the business manager - business.facebook.com
+- create an ad account / acquire your ad account ID which will be hosting the custom audiences
+- create a new app at developers.facebook.com
+- pair app to a business manager (required to use custom audience functionality) - in advanced app settings
+
+At this point you can start development but in order to move to production you will need to fill out everything in the basic settings and submit the app for review. 
+Corrdinate with the Social and Legal teams on this. 
+
+'''
+
+#things needed to instantiate the session
+#get this at https://developers.facebook.com/tools/explorer/
+#you want a user access token
+#You can create a long lived token that will last 3 months. otherwise will only last 30 minutes
+access_token = ''
+
+
+#below are just in the fb app settings
+#to find the app_secret, look in your app settings under "basic"
+app_secret = ''
+
+#to find the app_id, look in your app settings under "basic"
+app_id = ''
+
+#below is the ad account ID that you will be pushing the audiences in to
+#get this by logging in to business.facebook.com. 
+#Ad accounts should be in the middle of the page. 
+#click on the ad account to copy it to the clipboard. 
+#audience id must be in the format "act_YOURACCOUNTIDHERE"
+my_account = '' 
+
+#The below code  effectively logs in using the info above
+FacebookAdsApi.init(app_id, app_secret, access_token)
+
+maindir = os.getcwd()
+sourcedir = maindir + '/SOURCE'
+filelist = (os.listdir(sourcedir))
+movedir = maindir + '/ARCHIVE'
+apipath = maindir + '/SOURCE/'
+filecount = 0
+totalrecords = 0
+
+print ('Lets get started');
+print ('Source Directory: ' + sourcedir);
+print ('Archive Directory: ' + movedir);
+for index, filenamez in enumerate(filelist):
+	#if os.path.splitext(filename)[-1].lower() == '.csv':
+	#3 - create a blank custom audience
+	filename = str(filenamez)
+	print ('filename is ' + filename);
+	audience = CustomAudience(parent_id=my_account)
+	audience[CustomAudience.Field.subtype] = CustomAudience.Subtype.custom
+	audience[CustomAudience.Field.name] = filename[:-4]
+	audience[CustomAudience.Field.description] = filename[:-4]
+	audience[CustomAudience.Field.customer_file_source] = 'USER_PROVIDED_ONLY' 
+	
+	#the below command actually creates the custom audience
+	audience.remote_create()
+	#remote_create is being depricated soon. Will need to migrate to 
+	#AdAccount(api=self._api, fbid=parent_id).create_custom_audience(fields, params, batch, success, failure, pending)
+	#not sure how to use this yet. 
+	
+	caid = audience[CustomAudience.Field.id]
+	print ('my new custom audience id is: ' + caid);
+
+	#4 - add records to the blank custom audience
+	# will push with a pid and will use multi key matching. 
+	#update - Facebook confirmed "is_raw = True" will automatically hash data.  
+	schema = [
+		CustomAudience.Schema.MultiKeySchema.extern_id, #send your external id here
+		CustomAudience.Schema.MultiKeySchema.fn,
+		CustomAudience.Schema.MultiKeySchema.ln,
+		CustomAudience.Schema.MultiKeySchema.ct,
+		CustomAudience.Schema.MultiKeySchema.st,
+		CustomAudience.Schema.MultiKeySchema.zip,
+		CustomAudience.Schema.MultiKeySchema.email,
+		CustomAudience.Schema.MultiKeySchema.email,
+		CustomAudience.Schema.MultiKeySchema.email,
+		CustomAudience.Schema.MultiKeySchema.phone,
+		CustomAudience.Schema.MultiKeySchema.phone,
+		CustomAudience.Schema.MultiKeySchema.country
+	]
+	
+	starttime = datetime.datetime.now()
+	counter = 0
+	processedrows = 0
+	totalrow = 0
+	userz = []
+	contactfile = apipath+filename
+	
+	with open(contactfile, 'r') as zz:
+		prereader = csv.reader(zz)
+		filerowz = sum(1 for row in prereader)
+	
+	with open(contactfile, 'r') as openfile:
+		print('Start time: ' + str(starttime))
+		reader = csv.reader(openfile)
+		for row in reader:
+			userz.append(row)
+			counter += 1
+			processedrows +=1
+			totalrow += 1
+			
+			if counter == 10000:
+				audience.add_users(schema, userz, is_raw=True, pre_hashed=False)
+				print(str(totalrow) + ' Records added successfully')
+				counter = 0
+				userz = []
+				
+			elif counter > 0 and counter < 10000 and processedrows == filerowz:
+				audience.add_users(schema, userz, is_raw=True, pre_hashed=False)
+				print(str(totalrow) + ' Records added successfully')
+				counter = 0
+				userz = [] 
+				
+	print('Upload complete. Added ' + str(totalrow) + ' records.')
+	endtime = datetime.datetime.now()
+	print('End time: ' + str(endtime))
+
+	shutil.move(apipath+filename, movedir+'/'+filename)
+	filecount = filecount + 1
+	totalrecords = totalrecords + totalrow
+	
+	#share the file with the requested account id
+	#need to handle exceptions here and make code dynamically accept 0 or more audiences to share with. 
+	
+	sharing_account_id = shareid
+	relationship_type = 'Audience Info Provider'
+	
+	print('Sharing audience ' + caid + ' with other account ' + sharing_account_id )
+	
+	url = f"https://graph.facebook.com/v4.0/" + caid + "/adaccounts"
+	querystring = {"adaccounts":sharing_account_id,"relationship_type":relationship_type,"access_token":access_token}
+	response = requests.request("POST", url, params=querystring)
+	print(response.text)
+	
+	print("Audience has been shared!")
+	
+	#below is the lookalike code for later...
+	#need to handle gracefully if not enough records
+	#maybe also output which lals were skipped due to insufficient records in the concluding statement
+	
+	#lookalike = CustomAudience(parent_id=my_account)
+	#lookalike.update({
+	#	CustomAudience.Field.name: filename[:-4] + '_lookalike',
+	#	CustomAudience.Field.subtype: CustomAudience.Subtype.lookalike,
+	#	CustomAudience.Field.origin_audience_id: caid,
+	#	CustomAudience.Field.lookalike_spec: {
+	#			'type': 'similarity',
+	#			'ratio': 0.05,
+	#			'country': 'US',
+	#		},
+	#})
+	
+	#lookalike.remote_create()
+	#laid = lookalike[CustomAudience.Field.id]
+	#print ('my new lookalike audience id is: ' + laid);
+	#print(lookalike)
+	
+	
+print('ALL uploads complete. Added ' + str(totalrecords) + ' records across ' + str(filecount) + ' files shared to ' + str(shareid) +'.')
+
+
+
